@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gharuka-guru-ui
+  namespace: gharuka-guru
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gharuka-guru-ui
+  template:
+    metadata:
+      labels:
+        app: gharuka-guru-ui
+    spec:
+      containers:
+      - name: ui
+        image: ghcr.io/<yourorg>/ghar-ka-guru-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8501
+        env:
+        - name: API_BASE
+          value: "http://gharuka-guru-api:8000"
+      imagePullSecrets:
+      - name: regcred
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gharuka-guru-ui
+  namespace: gharuka-guru
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gharuka-guru-ui
+  template:
+    metadata:
+      labels:
+        app: gharuka-guru-ui
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      containers:
+      - name: ui
+        image: ghcr.io/<yourorg>/ghar-ka-guru-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8501
+        env:
+        - name: API_BASE
+          value: "http://gharuka-guru-backend:8000"

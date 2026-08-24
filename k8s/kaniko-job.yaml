@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-build-and-push
+  namespace: gharuka-guru
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:latest
+          args:
+            - "--context=git://github.com/<yourorg>/<repo>.git#refs/heads/main"
+            - "--dockerfile=gurucool/Dockerfile"
+            - "--destination=ghcr.io/<yourorg>/ghar-ka-guru-backend:latest"
+            - "--destination=ghcr.io/<yourorg>/ghar-ka-guru-ui:latest"
+            - "--insecure"
+          env:
+            - name: DOCKER_CONFIG
+              value: /kaniko/.docker/
+          volumeMounts:
+            - name: kaniko-secret
+              mountPath: /kaniko/.docker/
+      volumes:
+        - name: kaniko-secret
+          secret:
+            secretName: regcred
+
+# Notes:
+# - Replace `git://github.com/<yourorg>/<repo>.git` with your repository URL.
+# - Create Kubernetes secret `regcred` for registry credentials (type kubernetes.io/dockerconfigjson) in the same namespace.
+# - This Job clones your repo inside kaniko and builds/pushes images. It's useful when you want cluster-side builds.

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gharuka-guru-ui
+  namespace: gharuka-guru
+spec:
+  selector:
+    app: gharuka-guru-ui
+  ports:
+    - protocol: TCP
+      port: 8501
+      targetPort: 8501
+  type: ClusterIP

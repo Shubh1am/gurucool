@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gharuka-guru-backend
+  namespace: gharuka-guru
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gharuka-guru-backend
+  template:
+    metadata:
+      labels:
+        app: gharuka-guru-backend
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      containers:
+      - name: backend
+        image: ghcr.io/<yourorg>/ghar-ka-guru-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gharuka-guru-secrets
+              key: OPENAI_API_KEY
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gharuka-guru-secrets
+              key: PINECONE_API_KEY
+        - name: PINECONE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: gharuka-guru-config
+              key: PINECONE_ENV
+        - name: PINECONE_INDEX_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: gharuka-guru-config
+              key: PINECONE_INDEX_NAME

@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gharuka-guru-ingress
+  namespace: gharuka-guru
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: gharukaguru.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gharuka-guru-ui
+                port:
+                  number: 8501

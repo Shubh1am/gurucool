@@ -1,0 +1,17 @@
+# Quick local copy of CI workflow for reference in `gurucool/`
+# (Not used by GitHub Actions unless placed under .github/workflows)
+
+# CI/CD Build & Deploy workflow
+# Required repository secrets: REGISTRY, REGISTRY_USERNAME, REGISTRY_PASSWORD, IMAGE_NAMESPACE, KUBE_CONFIG_DATA
+
+name: CI/CD Build & Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  BACKEND_IMAGE: ${{ secrets.REGISTRY }}/${{ secrets.IMAGE_NAMESPACE }}/ghar-ka-guru-backend:latest
+  UI_IMAGE: ${{ secrets.REGISTRY }}/${{ secrets.IMAGE_NAMESPACE }}/ghar-ka-guru-ui:latest
+
+# (rest of workflow identical to .github/workflows/ci-cd.yaml)

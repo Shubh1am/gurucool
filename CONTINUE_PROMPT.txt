@@ -1,0 +1,36 @@
+Use this prompt in the new VS Code window to continue working on the Ghar Ka Guru project.
+
+Mission:
+You are continuing Phase 1 of Ghar Ka Guru — a text-first RAG sandbox for rural Indian students. Maintain the existing Docker Compose setup but add Kubernetes manifests and a deployment plan so we can run locally with Docker Compose and deploy to Kubernetes for staging/production.
+
+Immediate Goals:
+- Keep `docker-compose.yml` as the local developer workflow.
+- Add a `k8s/` folder with namespaced manifests for Postgres, backend, UI, Secrets, Services, and an optional Ingress.
+- Ensure env secrets are referenced via Kubernetes `Secret` and non-sensitive config via `ConfigMap`.
+- Use placeholder container images `ghcr.io/<yourorg>/ghar-ka-guru-backend:latest` and `ghcr.io/<yourorg>/ghar-ka-guru-ui:latest` for k8s manifests.
+
+Tasks to run now in the VS Code window:
+1. Open the `gurucool` folder.
+2. Review `docker-compose.yml` for local development flow.
+3. Implement k8s manifests (see `k8s/` directory). Modify image names and secret values.
+4. Build and push Docker images to your registry (GHCR/ECR) before applying k8s manifests.
+5. Apply manifests to a test cluster: `kubectl apply -f k8s/ --namespace=gharuka-guru`.
+
+Helpful commands:
+```
+# Build and push images (example with ghcr)
+docker build -t ghcr.io/<yourorg>/ghar-ka-guru-backend:latest -f gurucool/Dockerfile .
+docker push ghcr.io/<yourorg>/ghar-ka-guru-backend:latest
+
+# Apply k8s manifests
+kubectl apply -f gurucool/k8s/
+
+# Use docker-compose locally
+docker compose -f gurucool/docker-compose.yml up --build
+```
+
+Notes:
+- Use the `SECRET` and `CONFIG` YAMLs under `k8s/` to store keys securely in your cluster.
+- For local k8s testing, use `kind` or `minikube` and enable an ingress controller if you want HTTP routing.
+
+When you finish these steps, run a sanity test: ingest a small PDF via Streamlit UI and run a chat query.
