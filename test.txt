@@ -1,0 +1,27 @@
+: Command Line Testing (cURL)
+1. Test the Dynamic Timetable Generator
+curl -X POST "http://localhost:8080/api/v1/generate-timetable" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "student_id": "student_101",
+    "baseline_hours_per_week": 21,
+    "prep_weeks": 2,
+    "target_exam": "MPSC"
+  }'
+
+2. Test PDF Syllabus Ingestion (Ollama Embeddings + Pinecone)
+curl -X POST "http://localhost:8080/api/v1/ingest-syllabus?student_id=student_101" \
+  -H "accept: application/json" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/path/to/your/document.pdf;type=application/pdf"
+
+3. Test RAG Chat Endpoint (Local Llama 3.2 Inference)
+
+curl -X POST "http://localhost:8080/api/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "student_id": "student_101",
+    "target_exam": "MPSC",
+    "language": "English",
+    "query_text": "How should I structure my daily study schedule?"
+  }'
