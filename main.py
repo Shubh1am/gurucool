@@ -2,26 +2,35 @@ import os
 import io
 import asyncio
 from typing import List, Optional
+# Import ServerlessSpec at the top of main.py
+from pinecone import Pinecone, ServerlessSpec
 
 import pymupdf as fitz
 from database import create_db_and_tables
 from pinecone import Pinecone
-import openai
+# --- OPENAI COMMENTED OUT ---
+# import openai
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# --- OLLAMA / LLAMA-INDEX IMPORTS ---
+from llama_index.core import Settings
+from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.ollama import OllamaEmbedding
 
 load_dotenv()
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENV = os.getenv("PINECONE_ENV", "us-west1-gcp")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "ghar-ka-guru-index")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is required in environment")
-openai.api_key = OPENAI_API_KEY
+# --- OPENAI API KEY CHECK COMMENTED OUT ---
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# if not OPENAI_API_KEY:
+#     raise RuntimeError("OPENAI_API_KEY is required in environment")
+# openai.api_key = OPENAI_API_KEY
 
 if not PINECONE_API_KEY:
     raise RuntimeError("PINECONE_API_KEY is required in environment")
@@ -29,18 +38,53 @@ if not PINECONE_API_KEY:
 # Initialize Pinecone client (v3+)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-EMBED_MODEL = "text-embedding-3-small"
-EMBED_DIM = 1536
+# --- OLLAMA MODEL CONFIGURATION ---
+# Points to local host Ollama instance when running inside Docker
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 
-# ensure index exists (v3 client)
-existing_indexes = pc.list_indexes()
+# Configure Ollama LLM (llama3.2) & Embeddings (bge-m3)
+llm = Ollama(
+    model="llama3.2", 
+    base_url=OLLAMA_HOST, 
+    request_timeout=120.0
+)
+embed_model = OllamaEmbedding(
+    model_name="bge-m3", 
+    base_url=OLLAMA_HOST
+)
+
+# Global LlamaIndex settings
+Settings.llm = llm
+Settings.embed_model = embed_model
+
+# --- OPENAI EMBEDDING CONFIG COMMENTED OUT ---
+# EMBED_MODEL = "text-embedding-3-small"
+# EMBED_DIM = 1536
+
+# bge-m3 embedding dimension is 1024
+EMBED_DIM = 1024
+
+# Ensure Pinecone index exists
+# existing_indexes = pc.list_indexes()
+# if PINECONE_INDEX_NAME not in existing_indexes:
+#     pc.create_index(name=PINECONE_INDEX_NAME, dimension=EMBED_DIM)
+# Ensure Pinecone index exists with ServerlessSpec
+existing_indexes = [idx.name for idx in pc.list_indexes()]
 if PINECONE_INDEX_NAME not in existing_indexes:
-    pc.create_index(name=PINECONE_INDEX_NAME, dimension=EMBED_DIM)
+    pc.create_index(
+        name=PINECONE_INDEX_NAME,
+        dimension=EMBED_DIM,
+        metric="cosine",
+        spec=ServerlessSpec(
+            cloud="aws",
+            region="us-east-1"  # Replace with your Pinecone region (e.g., us-east-1)
+        )
+    )
 
 # Get index handle
 index = pc.Index(PINECONE_INDEX_NAME)
 
-app = FastAPI(title="Ghar Ka Guru - Phase 1 Text RAG Sandbox")
+app = FastAPI(title="Ghar Ka Guru - Phase 1 Text RAG Sandbox (Ollama Local)")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -88,13 +132,20 @@ def chunk_text(text: str, chunk_size_chars: int = 2048, overlap: int = 200) -> L
 
 
 async def embed_texts(texts: List[str]) -> List[List[float]]:
+    """Embed texts asynchronously using local Ollama bge-m3 model."""
     loop = asyncio.get_event_loop()
 
     def sync_embed(ts):
-        resp = openai.Embedding.create(input=ts, model=EMBED_MODEL)
-        return [r["embedding"] for r in resp["data"]]
+        # Using LlamaIndex OllamaEmbedding model to generate text vectors
+        return [embed_model.get_text_embedding(t) for t in ts]
 
     return await loop.run_in_executor(None, sync_embed, texts)
+
+    # --- OPENAI EMBEDDING METHOD COMMENTED OUT ---
+    # def sync_embed(ts):
+    #     resp = openai.Embedding.create(input=ts, model=EMBED_MODEL)
+    #     return [r["embedding"] for r in resp["data"]]
+    # return await loop.run_in_executor(None, sync_embed, texts)
 
 
 @app.post("/api/v1/ingest-syllabus", response_model=IngestResponse)
@@ -119,7 +170,7 @@ async def ingest_syllabus(student_id: str, file: UploadFile = File(...)):
     chunks = chunk_text(text, chunk_size_chars=2048, overlap=256)
     embeddings = await embed_texts(chunks)
 
-    # prepare upsert
+    # Prepare upsert
     records = []
     for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         uid = f"{student_id}::syllabus::{i}"
@@ -148,14 +199,14 @@ def build_system_prompt(target_exam: str, language: str) -> str:
 
 @app.post("/api/v1/chat")
 async def chat(q: ChatQuery):
-    # embed the query
+    # Embed the query using local Ollama embeddings
     q_emb = (await embed_texts([q.query_text]))[0]
 
-    # similarity search filtered by student_id
+    # Similarity search filtered by student_id
     try:
         res = index.query(vector=q_emb, top_k=5, include_metadata=True, include_values=False, filter={"student_id": {"$eq": q.student_id}})
     except Exception:
-        # fallback: search without filter
+        # Fallback: search without filter
         res = index.query(vector=q_emb, top_k=5, include_metadata=True, include_values=False)
 
     contexts = []
@@ -171,21 +222,29 @@ async def chat(q: ChatQuery):
 
     retrieved_texts = contexts
 
-    # assemble prompt for LLM
+    # Assemble prompt for LLM
     system_prompt = build_system_prompt(q.target_exam, q.language)
     context_block = "\n\n".join(retrieved_texts[:5])
 
     user_prompt = (
-        f"Context:\n{context_block}\n\nQ: {q.query_text}\n\nInstructions: Answer concisely, use village/farming analogies, include a 2-step practice suggestion."
+        f"{system_prompt}\n\n"
+        f"Context:\n{context_block}\n\n"
+        f"Q: {q.query_text}\n\n"
+        f"Instructions: Answer concisely, use village/farming analogies, include a 2-step practice suggestion."
     )
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
+    # --- OLLAMA LOCAL INFERENCE ---
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(None, llm.complete, user_prompt)
+    answer = str(response)
 
-    resp = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=messages, max_tokens=512)
-    answer = resp["choices"][0]["message"]["content"]
+    # --- OPENAI CHAT COMPLETION COMMENTED OUT ---
+    # messages = [
+    #     {"role": "system", "content": system_prompt},
+    #     {"role": "user", "content": user_prompt},
+    # ]
+    # resp = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=messages, max_tokens=512)
+    # answer = resp["choices"][0]["message"]["content"]
 
     return {"answer": answer}
 
