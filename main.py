@@ -3,9 +3,9 @@ import io
 import asyncio
 from typing import List, Optional
 
-import fitz
+import pymupdf as fitz
 from database import create_db_and_tables
-import pinecone
+from pinecone import Pinecone
 import openai
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,16 +26,19 @@ openai.api_key = OPENAI_API_KEY
 if not PINECONE_API_KEY:
     raise RuntimeError("PINECONE_API_KEY is required in environment")
 
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
+# Initialize Pinecone client (v3+)
+pc = Pinecone(api_key=PINECONE_API_KEY)
 
 EMBED_MODEL = "text-embedding-3-small"
 EMBED_DIM = 1536
 
-# ensure index exists
-if PINECONE_INDEX_NAME not in pinecone.list_indexes():
-    pinecone.create_index(name=PINECONE_INDEX_NAME, dimension=EMBED_DIM)
+# ensure index exists (v3 client)
+existing_indexes = pc.list_indexes()
+if PINECONE_INDEX_NAME not in existing_indexes:
+    pc.create_index(name=PINECONE_INDEX_NAME, dimension=EMBED_DIM)
 
-index = pinecone.Index(PINECONE_INDEX_NAME)
+# Get index handle
+index = pc.Index(PINECONE_INDEX_NAME)
 
 app = FastAPI(title="Ghar Ka Guru - Phase 1 Text RAG Sandbox")
 app.add_middleware(
